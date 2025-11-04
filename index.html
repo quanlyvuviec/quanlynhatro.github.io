@@ -272,10 +272,7 @@
             const year = date.getFullYear();
             return `${day}/${month}/${year}`;
         };
-        const exportToExcel = (data, filename) => {
-            const ws = XLSX.utils.json_to_sheet(data);
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
+        const exportToExcel = (wb, filename) => {
             XLSX.writeFile(wb, `${filename}.xlsx`);
         };
         // IndexedDB Manager
@@ -285,7 +282,6 @@
                 this.version = 1;
                 this.db = null;
             }
-
             async init() {
                 if (this.db) return this.db;
                 return new Promise((resolve, reject) => {
@@ -309,7 +305,6 @@
                     request.onerror = (event) => reject(event.target.error);
                 });
             }
-
             async getAll(storeName) {
                 await this.init();
                 return new Promise((resolve, reject) => {
@@ -320,7 +315,6 @@
                     request.onerror = () => reject(request.error);
                 });
             }
-
             async save(storeName, data) {
                 await this.init();
                 return new Promise((resolve, reject) => {
@@ -331,7 +325,6 @@
                     request.onerror = () => reject(request.error);
                 });
             }
-
             async get(storeName, key) {
                 await this.init();
                 return new Promise((resolve, reject) => {
@@ -342,7 +335,6 @@
                     request.onerror = () => reject(request.error);
                 });
             }
-
             async delete(storeName, key) {
                 await this.init();
                 return new Promise((resolve, reject) => {
@@ -353,7 +345,6 @@
                     request.onerror = () => reject(request.error);
                 });
             }
-
             async saveAll(storeName, dataArray) {
                 await this.init();
                 return new Promise((resolve, reject) => {
@@ -366,7 +357,6 @@
             }
         }
         const dbManager = new DatabaseManager();
-
         // Component chính
         function QuanLyNhaTro() {
             const [view, setView] = useState('home');
@@ -376,7 +366,6 @@
             const [searchTerm, setSearchTerm] = useState('');
             const [isLoggedIn, setIsLoggedIn] = useState(false);
             const [showChangePassword, setShowChangePassword] = useState(false);
-
             useEffect(() => {
                 const loadData = async () => {
                     await dbManager.init();
@@ -387,17 +376,14 @@
                 };
                 loadData();
             }, []);
-
             const saveData = async (data) => {
                 setNhaTros(data);
                 await dbManager.saveAll('nhaTros', data);
             };
-
             const saveKhachDaTra = async (data) => {
                 setKhachDaTra(data);
                 await dbManager.saveAll('khachDaTra', data);
             };
-
             const addOrUpdateNhaTro = async (nhaTro) => {
                 let updated;
                 if (nhaTro.id) {
@@ -410,31 +396,27 @@
                 await saveData(updated);
                 setView('home');
             };
-
             const deleteNhaTro = async (id) => {
                 if (confirm('Bạn có chắc chắn muốn xóa nhà trọ này?')) {
                     const updated = nhaTros.filter(nt => nt.id !== id);
                     await saveData(updated);
                 }
             };
-
             const filteredNhaTros = nhaTros.filter(nt =>
                 nt.tenNhaTro.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                nt.diaChi.toLowerCase().includes(searchTerm.toLowerCase())
+                nt.diaChi.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                nt.cskv?.toLowerCase().includes(searchTerm.toLowerCase())
             );
-
             const handleLogout = () => {
                 if (confirm('Bạn có chắc chắn muốn đăng xuất?')) {
                     setIsLoggedIn(false);
                     setView('home');
                 }
             };
-
             const handleChangePassword = async (newCredentials) => {
                 await dbManager.save('settings', { key: 'credentials', value: newCredentials });
                 setShowChangePassword(false);
             };
-
             const handleBackup = async () => {
                 const data = {
                     nhaTros: await dbManager.getAll('nhaTros'),
@@ -449,7 +431,6 @@
                 a.click();
                 URL.revokeObjectURL(url);
             };
-
             const handleRestore = (e) => {
                 const file = e.target.files[0];
                 if (file) {
@@ -469,11 +450,67 @@
                     reader.readAsText(file);
                 }
             };
-
+            const exportByCSKV = (cskv) => {
+                const nhaTrosByCSKV = filteredNhaTros.filter(nt => nt.cskv?.toLowerCase() === cskv.toLowerCase());
+                if (nhaTrosByCSKV.length === 0) {
+                    alert('Không có nhà trọ nào cho CSKV này.');
+                    return;
+                }
+                const wb = XLSX.utils.book_new();
+                nhaTrosByCSKV.forEach(nt => {
+                    const sheetName = nt.tenNhaTro.substring(0, 31); // Giới hạn tên sheet
+                    const infoChung = [
+                        ['Thông tin chung nhà trọ'],
+                        ['Tên nhà trọ', nt.tenNhaTro],
+                        ['Địa chỉ', nt.diaChi],
+                        ['Số phòng', nt.soPhong],
+                        ['CSKV', nt.cskv],
+                        ['Chủ nhà họ tên', nt.chuNha?.hoTen || ''],
+                        ['Chủ nhà CCCD', nt.chuNha?.canCuoc || ''],
+                        ['Chủ nhà HKTT', nt.chuNha?.hktt || ''],
+                        ['Chủ nhà Nơi ở hiện tại', nt.chuNha?.noiOHienTai || ''],
+                        ['Chủ nhà SĐT', nt.chuNha?.soDienThoai || ''],
+                        ['Người thuê họ tên', nt.nguoiThue?.hoTen || ''],
+                        ['Người thuê CCCD', nt.nguoiThue?.canCuoc || ''],
+                        ['Người thuê HKTT', nt.nguoiThue?.hktt || ''],
+                        ['Người thuê Nơi ở hiện tại', nt.nguoiThue?.noiOHienTai || ''],
+                        ['Người thuê SĐT', nt.nguoiThue?.soDienThoai || ''],
+                        ['Người quản lý họ tên', nt.nguoiQuanLy?.hoTen || ''],
+                        ['Người quản lý CCCD', nt.nguoiQuanLy?.canCuoc || ''],
+                        ['Người quản lý HKTT', nt.nguoiQuanLy?.hktt || ''],
+                        ['Người quản lý Nơi ở hiện tại', nt.nguoiQuanLy?.noiOHienTai || ''],
+                        ['Người quản lý SĐT', nt.nguoiQuanLy?.soDienThoai || ''],
+                        ['Camera', nt.camera ? 'Có' : 'Không'],
+                        ['Báo động trộm', nt.baoDongTrom ? 'Có' : 'Không'],
+                        ['PCCC', nt.pccc ? 'Có' : 'Không'],
+                        [], // Dòng trống phân biệt
+                        ['Danh sách khách thuê']
+                    ];
+                    const khachThueData = (nt.khachThue || []).map(k => [
+                        k.hoTen,
+                        k.canCuoc,
+                        k.hktt || '',
+                        k.noiOHienTai || '',
+                        k.soDienThoai || '',
+                        k.ngheNghiep || '',
+                        k.soPhong,
+                        k.loaiXe || '',
+                        k.bienSoXe || '',
+                        formatDate(k.ngayThue),
+                        formatDate(k.ngayTra) || ''
+                    ]);
+                    const headersKhach = [['Họ tên', 'CCCD', 'HKTT', 'Nơi ở hiện tại', 'SĐT', 'Nghề nghiệp', 'Số phòng', 'Loại xe', 'Biển số xe', 'Ngày thuê', 'Ngày trả']];
+                    const fullData = [...infoChung, ...headersKhach, ...khachThueData];
+                    const ws = XLSX.utils.aoa_to_sheet(fullData);
+                    // Thêm styles cho header
+                    ws['!cols'] = [{ wch: 20 }, { wch: 15 }, { wch: 30 }, { wch: 30 }, { wch: 15 }, { wch: 20 }, { wch: 10 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }];
+                    XLSX.utils.book_append_sheet(wb, ws, sheetName);
+                });
+                exportToExcel(wb, `NhaTro_Theo_${cskv}_${new Date().toISOString().split('T')[0]}`);
+            };
             if (!isLoggedIn) {
                 return <LoginPage onLogin={() => setIsLoggedIn(true)} />;
             }
-
             return (
                 <div className="min-h-screen p-6">
                     <div className="max-w-7xl mx-auto">
@@ -500,6 +537,7 @@
                                 onLogout={handleLogout}
                                 onBackup={handleBackup}
                                 onRestore={handleRestore}
+                                onExportByCSKV={exportByCSKV}
                             />
                         )}
                         {view === 'add' && (
@@ -562,7 +600,6 @@
         function LoginPage({ onLogin }) {
             const [username, setUsername] = useState('');
             const [password, setPassword] = useState('');
-
             const handleLogin = async (e) => {
                 e.preventDefault();
                 await dbManager.init();
@@ -571,14 +608,12 @@
                     username: 'admin',
                     password: 'admin'
                 };
-
                 if (username === credentials.username && password === credentials.password) {
                     onLogin();
                 } else {
                     alert('Tên đăng nhập hoặc mật khẩu không đúng!');
                 }
             };
-
             return (
                 <div className="min-h-screen flex items-center justify-center">
                 <div className="card p-8 w-96">
@@ -617,7 +652,6 @@
             const [newUsername, setNewUsername] = useState('');
             const [newPassword, setNewPassword] = useState('');
             const [confirmPassword, setConfirmPassword] = useState('');
-
             const handleSubmit = (e) => {
                 e.preventDefault();
                 if (newPassword !== confirmPassword) {
@@ -626,7 +660,6 @@
                 }
                 onSave({ username: newUsername, password: newPassword });
             };
-
             return (
                 <div className="modal-overlay" onClick={onClose}>
                     <div className="modal-content" onClick={(e) => e.stopPropagation()}>
@@ -676,10 +709,11 @@
             );
         }
         // Component Trang chủ
-        function HomeView({ nhaTros, onAdd, onEdit, onDelete, onDetail, searchTerm, setSearchTerm, khachDaTra, onViewKhachDaTra, onGlobalSearch, onChangePassword, onLogout, onBackup, onRestore }) {
+        function HomeView({ nhaTros, onAdd, onEdit, onDelete, onDetail, searchTerm, setSearchTerm, khachDaTra, onViewKhachDaTra, onGlobalSearch, onChangePassword, onLogout, onBackup, onRestore, onExportByCSKV }) {
             const tongSoPhong = nhaTros.reduce((sum, nt) => sum + parseInt(nt.soPhong || 0), 0);
             const tongKhachThue = nhaTros.reduce((sum, nt) => sum + (nt.khachThue?.length || 0), 0);
             const tyLeDay = tongSoPhong > 0 ? ((tongKhachThue / tongSoPhong) * 100).toFixed(1) : 0;
+            const uniqueCSKV = [...new Set(nhaTros.map(nt => nt.cskv).filter(Boolean))].sort();
             return (
                 <div>
                     <div className="flex justify-end mb-4 gap-2">
@@ -730,7 +764,7 @@
                                     <i className="fas fa-search absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
                                     <input
                                         type="text"
-                                        placeholder="Tìm kiếm nhà trọ..."
+                                        placeholder="Tìm kiếm tên, địa chỉ, CSKV..."
                                         className="input-field pl-12"
                                         value={searchTerm}
                                         onChange={(e) => setSearchTerm(e.target.value)}
@@ -750,10 +784,16 @@
                                     <i className="fas fa-plus mr-2"></i>
                                     Thêm nhà trọ
                                 </button>
+                                <select className="btn btn-info" onChange={(e) => { if (e.target.value) onExportByCSKV(e.target.value); e.target.value = ''; }}>
+                                    <option value="">Xuất theo CSKV</option>
+                                    {uniqueCSKV.map(c => (
+                                     <option key={c} value={c} style={{color: 'orange'}}>{c}</option>
+                                ))}
+                                </select>
                             </div>
                         </div>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                         {nhaTros.length === 0 ? (
                             <div className="col-span-full text-center py-12 card">
                                 <i className="fas fa-building text-6xl text-gray-300 mb-4"></i>
@@ -768,7 +808,7 @@
                                             {nt.khachThue?.length || 0} khách
                                         </span>
                                     </div>
-                                   
+                                 
                                     <div className="space-y-2 mb-4 text-sm text-gray-600">
                                         <div className="flex items-center">
                                             <i className="fas fa-map-marker-alt w-5 text-purple-600"></i>
@@ -781,6 +821,10 @@
                                         <div className="flex items-center">
                                             <i className="fas fa-user w-5 text-green-600"></i>
                                             <span>QL: {nt.nguoiQuanLy?.hoTen || 'Chưa có'}</span>
+                                        </div>
+                                        <div className="flex items-center">
+                                            <i className="fas fa-shield-alt w-5 text-red-600"></i>
+                                            <span>CSKV: {nt.cskv || 'Chưa có'}</span>
                                         </div>
                                     </div>
                                     <div className="flex gap-2 pt-4 border-t">
@@ -818,7 +862,8 @@
                 nguoiQuanLy: { hoTen: '', canCuoc: '', hktt: '', noiOHienTai: '', soDienThoai: '' },
                 chuNhaIsNguoiThue: false,
                 chuNhaIsNguoiQuanLy: false,
-                anhNhaTro: []
+                anhNhaTro: [],
+                cskv: ''
             });
             const handleSubmit = (e) => {
                 e.preventDefault();
@@ -910,6 +955,18 @@
                                         onChange={(e) => setFormData({...formData, diaChi: e.target.value})}
                                         placeholder="VD: 123 Đường ABC, Quận 1, TP.HCM"
                                         required
+                                    />
+                                </div>
+                                <div className="md:col-span-2">
+                                    <label className="block text-sm font-semibold mb-2 text-gray-700">
+                                        Cảnh sát khu vực (CSKV)
+                                    </label>
+                                    <input
+                                        type="text"
+                                        className="input-field"
+                                        value={formData.cskv}
+                                        onChange={(e) => setFormData({...formData, cskv: e.target.value})}
+                                        placeholder="VD: Nguyễn Văn A"
                                     />
                                 </div>
                             </div>
@@ -1140,91 +1197,59 @@
             ];
             const handleExportReport = () => {
                 const wb = XLSX.utils.book_new();
-
-                // Sheet 1: Thông tin nhà trọ
+                // Sheet 1: Thông tin chung nhà trọ
                 const sheet1Data = [
-                    { 'Thông tin': 'Tên nhà trọ', 'Giá trị': nhaTro.tenNhaTro },
-                    { 'Thông tin': 'Địa chỉ', 'Giá trị': nhaTro.diaChi },
-                    { 'Thông tin': 'Số phòng', 'Giá trị': nhaTro.soPhong },
-                    { 'Thông tin': 'Tiện ích Camera', 'Giá trị': nhaTro.camera ? 'Có' : 'Không' },
-                    { 'Thông tin': 'Ghi chú Camera', 'Giá trị': nhaTro.cameraNote || '' },
-                    { 'Thông tin': 'Tiện ích Báo động trộm', 'Giá trị': nhaTro.baoDongTrom ? 'Có' : 'Không' },
-                    { 'Thông tin': 'Ghi chú Báo động trộm', 'Giá trị': nhaTro.baoDongNote || '' },
-                    { 'Thông tin': 'Tiện ích PCCC', 'Giá trị': nhaTro.pccc ? 'Có' : 'Không' },
-                    { 'Thông tin': 'Ghi chú PCCC', 'Giá trị': nhaTro.pcccNote || '' },
-                    { 'Thông tin': 'Chủ nhà - Họ tên', 'Giá trị': nhaTro.chuNha?.hoTen || '' },
-                    { 'Thông tin': 'Chủ nhà - CCCD', 'Giá trị': nhaTro.chuNha?.canCuoc || '' },
-                    { 'Thông tin': 'Chủ nhà - HKTT', 'Giá trị': nhaTro.chuNha?.hktt || '' },
-                    { 'Thông tin': 'Chủ nhà - Nơi ở hiện tại', 'Giá trị': nhaTro.chuNha?.noiOHienTai || '' },
-                    { 'Thông tin': 'Chủ nhà - SĐT', 'Giá trị': nhaTro.chuNha?.soDienThoai || '' },
-                    { 'Thông tin': 'Người thuê - Họ tên', 'Giá trị': nhaTro.nguoiThue?.hoTen || '' },
-                    { 'Thông tin': 'Người thuê - CCCD', 'Giá trị': nhaTro.nguoiThue?.canCuoc || '' },
-                    { 'Thông tin': 'Người thuê - HKTT', 'Giá trị': nhaTro.nguoiThue?.hktt || '' },
-                    { 'Thông tin': 'Người thuê - Nơi ở hiện tại', 'Giá trị': nhaTro.nguoiThue?.noiOHienTai || '' },
-                    { 'Thông tin': 'Người thuê - SĐT', 'Giá trị': nhaTro.nguoiThue?.soDienThoai || '' },
-                    { 'Thông tin': 'Người quản lý - Họ tên', 'Giá trị': nhaTro.nguoiQuanLy?.hoTen || '' },
-                    { 'Thông tin': 'Người quản lý - CCCD', 'Giá trị': nhaTro.nguoiQuanLy?.canCuoc || '' },
-                    { 'Thông tin': 'Người quản lý - HKTT', 'Giá trị': nhaTro.nguoiQuanLy?.hktt || '' },
-                    { 'Thông tin': 'Người quản lý - Nơi ở hiện tại', 'Giá trị': nhaTro.nguoiQuanLy?.noiOHienTai || '' },
-                    { 'Thông tin': 'Người quản lý - SĐT', 'Giá trị': nhaTro.nguoiQuanLy?.soDienThoai || '' }
+                    ['Thông tin chung nhà trọ'],
+                    ['Tên nhà trọ', nhaTro.tenNhaTro],
+                    ['Địa chỉ', nhaTro.diaChi],
+                    ['Số phòng', nhaTro.soPhong],
+                    ['CSKV', nhaTro.cskv || ''],
+                    ['Camera', nhaTro.camera ? 'Có' : 'Không'],
+                    ['Ghi chú Camera', nhaTro.cameraNote || ''],
+                    ['Báo động trộm', nhaTro.baoDongTrom ? 'Có' : 'Không'],
+                    ['Ghi chú Báo động trộm', nhaTro.baoDongNote || ''],
+                    ['PCCC', nhaTro.pccc ? 'Có' : 'Không'],
+                    ['Ghi chú PCCC', nhaTro.pcccNote || ''],
+                    ['Chủ nhà - Họ tên', nhaTro.chuNha?.hoTen || ''],
+                    ['Chủ nhà - CCCD', nhaTro.chuNha?.canCuoc || ''],
+                    ['Chủ nhà - HKTT', nhaTro.chuNha?.hktt || ''],
+                    ['Chủ nhà - Nơi ở hiện tại', nhaTro.chuNha?.noiOHienTai || ''],
+                    ['Chủ nhà - SĐT', nhaTro.chuNha?.soDienThoai || ''],
+                    ['Người thuê - Họ tên', nhaTro.nguoiThue?.hoTen || ''],
+                    ['Người thuê - CCCD', nhaTro.nguoiThue?.canCuoc || ''],
+                    ['Người thuê - HKTT', nhaTro.nguoiThue?.hktt || ''],
+                    ['Người thuê - Nơi ở hiện tại', nhaTro.nguoiThue?.noiOHienTai || ''],
+                    ['Người thuê - SĐT', nhaTro.nguoiThue?.soDienThoai || ''],
+                    ['Người quản lý - Họ tên', nhaTro.nguoiQuanLy?.hoTen || ''],
+                    ['Người quản lý - CCCD', nhaTro.nguoiQuanLy?.canCuoc || ''],
+                    ['Người quản lý - HKTT', nhaTro.nguoiQuanLy?.hktt || ''],
+                    ['Người quản lý - Nơi ở hiện tại', nhaTro.nguoiQuanLy?.noiOHienTai || ''],
+                    ['Người quản lý - SĐT', nhaTro.nguoiQuanLy?.soDienThoai || '']
                 ];
-                const ws1 = XLSX.utils.json_to_sheet(sheet1Data);
-                const range1 = XLSX.utils.decode_range(ws1['!ref']);
-                for (let C = range1.s.c; C <= range1.e.c; ++C) {
-                    const cell = ws1[XLSX.utils.encode_cell({r: 0, c: C})];
-                    cell.s = { font: { bold: true } };
-                }
-                XLSX.utils.book_append_sheet(wb, ws1, "ThongTinNhaTro");
-
+                const ws1 = XLSX.utils.aoa_to_sheet(sheet1Data);
+                ws1['!cols'] = [{ wch: 30 }, { wch: 50 }];
+                XLSX.utils.book_append_sheet(wb, ws1, "ThongTinChung");
                 // Sheet 2: Khách thuê
-                const sheet2Data = (nhaTro.khachThue || []).map(k => ({
-                    'Họ tên': k.hoTen,
-                    'Số CCCD': k.canCuoc,
-                    'HKTT': k.hktt,
-                    'Nơi ở hiện tại': k.noiOHienTai,
-                    'Số điện thoại': k.soDienThoai,
-                    'Nghề nghiệp': k.ngheNghiep,
-                    'Số phòng': k.soPhong,
-                    'Loại xe': k.loaiXe,
-                    'Biển số xe': k.bienSoXe,
-                    'Ngày thuê': formatDate(k.ngayThue),
-                    'Ngày trả': formatDate(k.ngayTra),
-                    'Địa chỉ nhà trọ': nhaTro.diaChi
-                }));
-                const ws2 = XLSX.utils.json_to_sheet(sheet2Data);
-                const range2 = XLSX.utils.decode_range(ws2['!ref']);
-                for (let C = range2.s.c; C <= range2.e.c; ++C) {
-                    const cell = ws2[XLSX.utils.encode_cell({r: 0, c: C})];
-                    cell.s = { font: { bold: true } };
-                }
+                const sheet2Data = [['Họ tên', 'CCCD', 'HKTT', 'Nơi ở hiện tại', 'SĐT', 'Nghề nghiệp', 'Số phòng', 'Loại xe', 'Biển số xe', 'Ngày thuê', 'Ngày trả', 'Địa chỉ nhà trọ']];
+                const khachThueData = (nhaTro.khachThue || []).map(k => [
+                    k.hoTen,
+                    k.canCuoc,
+                    k.hktt || '',
+                    k.noiOHienTai || '',
+                    k.soDienThoai || '',
+                    k.ngheNghiep || '',
+                    k.soPhong,
+                    k.loaiXe || '',
+                    k.bienSoXe || '',
+                    formatDate(k.ngayThue),
+                    formatDate(k.ngayTra),
+                    nhaTro.diaChi
+                ]);
+                const fullSheet2 = [...sheet2Data, ...khachThueData];
+                const ws2 = XLSX.utils.aoa_to_sheet(fullSheet2);
+                ws2['!cols'] = [{ wch: 20 }, { wch: 15 }, { wch: 30 }, { wch: 30 }, { wch: 15 }, { wch: 20 }, { wch: 10 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 30 }];
                 XLSX.utils.book_append_sheet(wb, ws2, "KhachThue");
-
-                // Sheet 3: Khách đã trả phòng (lọc theo nhà trọ)
-                const khachDaTraCuaNhaTro = khachDaTra.filter(k => k.tenNhaTro === nhaTro.tenNhaTro);
-                const sheet3Data = khachDaTraCuaNhaTro.map(k => ({
-                    'Họ tên': k.hoTen,
-                    'Số CCCD': k.canCuoc,
-                    'HKTT': k.hktt,
-                    'Nơi ở hiện tại': k.noiOHienTai,
-                    'Số điện thoại': k.soDienThoai,
-                    'Nghề nghiệp': k.ngheNghiep,
-                    'Số phòng': k.soPhong,
-                    'Loại xe': k.loaiXe,
-                    'Biển số xe': k.bienSoXe,
-                    'Ngày thuê': formatDate(k.ngayThue),
-                    'Ngày trả': formatDate(k.ngayTraPhong),
-                    'Địa chỉ nhà trọ': k.diaChiNhaTro
-                }));
-                const ws3 = XLSX.utils.json_to_sheet(sheet3Data);
-                const range3 = XLSX.utils.decode_range(ws3['!ref']);
-                for (let C = range3.s.c; C <= range3.e.c; ++C) {
-                    const cell = ws3[XLSX.utils.encode_cell({r: 0, c: C})];
-                    cell.s = { font: { bold: true } };
-                }
-                XLSX.utils.book_append_sheet(wb, ws3, "KhachDaTra");
-
-                XLSX.writeFile(wb, `BaoCao_${nhaTro.tenNhaTro}_${new Date().toISOString().split('T')[0]}.xlsx`);
-                alert('✅ Đã xuất báo cáo thành công!');
+                exportToExcel(wb, `BaoCao_${nhaTro.tenNhaTro}_${new Date().toISOString().split('T')[0]}`);
             };
             return (
                 <div className="card p-8">
@@ -1300,6 +1325,7 @@
                             { label: 'Tên nhà trọ', value: nhaTro.tenNhaTro },
                             { label: 'Địa chỉ', value: nhaTro.diaChi },
                             { label: 'Số phòng', value: nhaTro.soPhong },
+                            { label: 'CSKV', value: nhaTro.cskv || 'Chưa có' },
                             {
                                 label: 'Tiện ích',
                                 value: [
@@ -1423,7 +1449,6 @@
             const [filterRoom, setFilterRoom] = useState('all');
             const [searchTerm, setSearchTerm] = useState('');
             const [selectedRoom, setSelectedRoom] = useState(null);
-
             const addOrUpdateTenant = (tenant) => {
                 let updated;
                 if (tenant.originalId) {
@@ -1459,7 +1484,7 @@
                     alert('⚠️ Chưa có khách thuê nào để xuất!');
                     return;
                 }
-               
+             
                 const data = (nhaTro.khachThue || []).map(k => ({
                     'Họ tên': k.hoTen,
                     'Số CCCD': k.canCuoc,
@@ -1474,7 +1499,7 @@
                     'Ngày trả': formatDate(k.ngayTra),
                     'Địa chỉ nhà trọ': nhaTro.diaChi
                 }));
-               
+             
                 exportToExcel(data, `TatCaKhach_${nhaTro.tenNhaTro}_${new Date().toISOString().split('T')[0]}`);
                 alert('✅ Đã xuất tất cả khách ra Excel thành công!');
             };
@@ -1941,7 +1966,7 @@
             const [searchTerm, setSearchTerm] = useState('');
             const [filterNhaTro, setFilterNhaTro] = useState('all');
             const danhSachNhaTro = [...new Set(khachDaTra.map(k => k.tenNhaTro))];
-           
+         
             const filtered = khachDaTra.filter(k => {
                 const matchSearch = k.hoTen?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                                    k.canCuoc?.includes(searchTerm) ||
@@ -1954,7 +1979,7 @@
                     alert('⚠️ Không có dữ liệu để xuất!');
                     return;
                 }
-               
+             
                 const data = filtered.map(k => ({
                     'Họ tên': k.hoTen,
                     'Số CCCD': k.canCuoc,
@@ -1967,7 +1992,7 @@
                     'Ngày thuê': formatDate(k.ngayThue),
                     'Ngày trả': formatDate(k.ngayTraPhong)
                 }));
-               
+             
                 exportToExcel(data, `KhachDaTra_${new Date().toISOString().split('T')[0]}`);
                 alert('✅ Đã xuất Excel thành công!');
             };
